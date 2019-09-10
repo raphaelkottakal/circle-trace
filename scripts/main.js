@@ -5,6 +5,7 @@ const camera = new THREE.OrthographicCamera( window.innerWidth / - 2, window.inn
 const renderer = new THREE.WebGLRenderer({
   antialias: true
 });
+
 const gui = new dat.GUI();
 const guiValues = new makeGuiValues();
 let xPoints = [];
@@ -13,12 +14,16 @@ let shapeGroup;
 const waveLength = Math.PI * 2;
 const nPoints = 32;
 const commonScale = 64;
-const animateIt = false;
+const pointSize = 3;
+
+let mouseWasClicked = false;
 
 // create elements
 const camControls = new THREE.OrbitControls( camera );
 const ambientLight = new THREE.AmbientLight( 0x404040 );
 const light = new THREE.DirectionalLight(0xffffff, 0.75);
+var raycaster = new THREE.Raycaster();
+var mouse = new THREE.Vector2();
 // const testPoint = createPoint({
 //   position: new THREE.Vector3(0, 0, 0),
 //   size: 1,
@@ -39,13 +44,15 @@ yPoints = generateYsMap({
 gui.close();
 // gui.add(guiValues, 'addHelpers');
 gui.add(guiValues, 'orbitCam');
+gui.add(guiValues, 'rotateIt').listen();
+gui.add(guiValues, 'resetRotate');
 // gui.addColor(guiValues, 'color');
 // camera
 camControls.enableDamping = true;
 camControls.enabled = false;
 camControls.enableZoom = false;
-camera.position.z = 128;
-camera.lookAt(100, 100, 100);
+camera.position.z = 500;
+// camera.lookAt(100, 100, 100);
 // light
 light.position.x = 16;
 light.position.y = 16;
@@ -65,6 +72,7 @@ drawShape({
   scene: scene,
 });
 drawChart({
+  name: 'x-chart',
   points: xPoints,
   scene: camera,
   scale: commonScale,
@@ -75,6 +83,7 @@ drawChart({
   )
 });
 drawChart({
+  name: 'y-chart',
   points: yPoints,
   scene: camera,
   scale: commonScale,
@@ -91,9 +100,9 @@ scene.add(camera);
 function animate() {
   requestAnimationFrame(animate);
   setFromGui();
-  if (shapeGroup && animateIt) {
+  if (shapeGroup && guiValues.rotateIt) {
     // shapeGroup.rotation.x += 0.01;
-    // shapeGroup.rotation.y += 0.015;
+    shapeGroup.rotation.y += 0.015;
     shapeGroup.rotation.z += 0.01;
   }
   camControls.update();
@@ -138,10 +147,11 @@ function createPoint(opts) {
 
 function drawShape(opts) {
   const group = new THREE.Group();
+  group.name = 'shape'
   for (let i = 0; i < opts.xPoints.length; i++) {
     const point = createPoint({
       position: new THREE.Vector3(opts.xPoints[i], opts.yPoints[i], 0),
-      size: 1,
+      size: pointSize,
       color: 0x00ff00
     });
     group.add(point);
@@ -153,6 +163,7 @@ function drawShape(opts) {
 
 function drawChart(opts) {
   const group = new THREE.Group();
+  group.name = opts.name;
   const internalScale = 0.1
 
   const guideLineMaterial = new THREE.LineBasicMaterial( { color: 0x888888 } );
@@ -172,7 +183,7 @@ function drawChart(opts) {
   for (let i = 0; i < opts.points.length; i++) {
     const point = createPoint({
       position: new THREE.Vector3(i * opts.scale * internalScale, opts.points[i], 0),
-      size: 1,
+      size: pointSize,
       color: 0x00ff00
     });
     group.add(point);
@@ -189,10 +200,15 @@ window.onresize = onResize;
 
 // gui functions 
 function makeGuiValues() {
-  // this.color = [ 0, 255, 0 ];
   this.orbitCam = false;
-  // this.addHelpers = addHelpers;
+  this.rotateIt = false;
+  this.resetRotate = function() {
+    shapeGroup.rotation.y = 0;
+    shapeGroup.rotation.z = 0;
+    this.rotateIt = false;
+  };
 };
+// this.addHelpers = addHelpers;
 
 function addHelpers() {
   const lightHelper = new THREE.DirectionalLightHelper(light, 4);
@@ -213,3 +229,30 @@ function onResize() {
   camera.bottom = -window.innerHeight / 2;
   camera.updateProjectionMatrix();
 }
+
+function onMouseClick( event ) {
+
+	// calculate mouse position in normalized device coordinates
+	// (-1 to +1) for both components
+
+	mouse.x = ( event.clientX / window.innerWidth ) * 2 - 1;
+	mouse.y = - ( event.clientY / window.innerHeight ) * 2 + 1;
+
+  raycaster.setFromCamera( mouse, camera );
+  // calculate objects intersecting the picking ray
+  const shapeGroup = scene.getObjectByName( "shape" );
+  const xChartGroup = scene.getObjectByName( "x-chart" );
+  const yChartGroup = scene.getObjectByName( "y-chart" );
+
+  const allChildren = shapeGroup.children.concat(xChartGroup.children).concat(yChartGroup.children);
+
+  var intersects = raycaster.intersectObjects( allChildren );
+
+  for ( var i = 0; i < intersects.length; i++ ) {
+    intersects[ i ].object.material.color.set( 0xff0000 );
+
+  }
+}
+
+// Event listeners
+window.addEventListener( 'mousedown', onMouseClick );
